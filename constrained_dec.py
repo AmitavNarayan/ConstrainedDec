@@ -45,16 +45,16 @@ class ConstrainedDec():
         self.tokenizer = tokenizer
         
     def collate_fn_train(self, batch):
-        new_batch = {"gold": [], "input_ids": [], "mask": [], "labels": []}
+        new_batch = {"gold": [], "input_ids": [], "target_mask": [], "prompt_mask": []}
         maxlen = max([len(ex["prompt_ids"] + ex["target_ids"]) for ex in batch])
         for ex in batch:
             input_ids = ex["prompt_ids"] + ex["target_ids"]
             pad_len = maxlen - len(input_ids)
             new_batch["input_ids"].append(input_ids + [self.tokenizer.pad_token_id] * pad_len)
-            new_batch["mask"].append([True] * len(input_ids) + [False] * pad_len)
-            new_batch["labels"].append([-100] * len(ex["prompt_ids"]) + ex["target_ids"] + [-100] * pad_len)
+            new_batch["prompt_mask"].append([True] * len(input_ids) + [False] * pad_len)
+            new_batch["target_mask"].append([False] * (len(ex["prompt_ids"]) - 1) + [True] * len(ex["target_ids"]) + [False] * pad_len)
             new_batch["gold"].append(ex["gold"])
-        for key in ["mask", "input_ids", "labels"]: new_batch[key] = torch.tensor(new_batch[key])
+        for key in ["prompt_mask", "target_mask", "input_ids"]: new_batch[key] = torch.tensor(new_batch[key])
         return new_batch
 
     def collate_fn_eval(self, batch):
@@ -74,10 +74,11 @@ class ConstrainedDec():
         dl = DataLoader(ds, batch_size=batch_size, shuffle=True, collate_fn=self.collate_fn_train)
         for batch in dl:
             input_ids = batch["input_ids"].to(self.device)
-            mask = batch["mask"].to(self.device)
-            labels = batch["labels"].to(self.device)
-            output = self.m(input_ids=input_ids, attention_mask=mask, labels=labels)
-            loss = output.loss
+            prompt_mask = batch["prompt_mask"].to(self.device)
+            target_mask = batch["target_mask"].to(self.device)
+            pred = self.m.lm_head(self.m.model(input_ids=input_ids, attention_mask=prompt_mask, use_cache=False).last_hidden_state[:, :-1][target_mask])
+            target = input_ids[:, 1:][target_mask]
+            loss = torch.nn.functional.cross_entropy(pred.float(), target)
             self.head_optim.zero_grad()
             loss.backward()
             self.head_optim.step()
@@ -119,8 +120,8 @@ if __name__=="__main__":
     ds = load_from_disk("/scratch/an4245/gsm8k_format")
 
     math = ConstrainedDec(model, tokenizer)
-    math.eval(ds=ds["test"].select(range(num_test)))
+    math.eval(ds=ds["test"].select(range(num_test)), batch_size=128)
     math.train(ds=ds["train"].select(range(num_train)), save_dir="/scratch/an4245/Qwen2.5-7-head")
-    math.eval(ds=ds["test"].select(range(num_test)))
+    math.eval(ds=ds["test"].select(range(num_test)), batch_size=128)
 
 
