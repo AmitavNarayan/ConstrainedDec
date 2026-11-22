@@ -6,7 +6,10 @@ from datasets import Dataset
 from torch.utils.data import DataLoader
 import wandb
 from datasets import load_from_disk
-from utils.scorers import Scorer
+from utils.score import score
+import outlines
+from outlines import Regex
+from utils.formatting import ds_formats
 
 
 
@@ -31,81 +34,31 @@ class ConstrainedDec():
                  tokenizer: AutoTokenizer,
                  head_dtype: torch.dtype = torch.float32,
                  lr: float = 5e-4,
-                 max_new_tokens: int = 200,
+                 max_new_tokens: int = 512,
                  load_dir: str = None):
-        self.m = model
-        self.device = self.m.device
-        self.m.requires_grad_(False)
-        self.head = Head(self.m.config.hidden_size, self.device, head_dtype)
+        self.model = model
+        self.device = self.model.device
+        self.model.requires_grad_(False)
+        self.head = Head(self.model.config.hidden_size, self.device, head_dtype)
         if load_dir is not None:  self.head.load_state_dict(torch.load(load_dir))
-        self.m.model.layers[-1].register_forward_hook(self.head.hook)
+        self.model.model.layers[-1].register_forward_hook(self.head.hook)
         self.head_optim = torch.optim.AdamW(self.head.parameters(), lr=lr)
         self.max_new_tokens = max_new_tokens
-        self.scorer = Scorer()
         self.tokenizer = tokenizer
         
-    def collate_fn_train(self, batch):
-        new_batch = {"gold": [], "input_ids": [], "target_mask": [], "prompt_mask": []}
-        maxlen = max([len(ex["prompt_ids"] + ex["target_ids"]) for ex in batch])
-        for ex in batch:
-            input_ids = ex["prompt_ids"] + ex["target_ids"]
-            pad_len = maxlen - len(input_ids)
-            new_batch["input_ids"].append(input_ids + [self.tokenizer.pad_token_id] * pad_len)
-            new_batch["prompt_mask"].append([True] * len(input_ids) + [False] * pad_len)
-            new_batch["target_mask"].append([False] * (len(ex["prompt_ids"]) - 1) + [True] * len(ex["target_ids"]) + [False] * pad_len)
-            new_batch["gold"].append(ex["gold"])
-        for key in ["prompt_mask", "target_mask", "input_ids"]: new_batch[key] = torch.tensor(new_batch[key])
-        return new_batch
-
-    def collate_fn_eval(self, batch):
-        new_batch = {"gold": [], "input_ids": [], "mask": []}
-        maxlen = max([len(ex["prompt_ids"]) for ex in batch])
-        for ex in batch:
-            ids = ex["prompt_ids"]
-            pad_len = maxlen - len(ids)
-            new_batch["input_ids"].append([self.tokenizer.pad_token_id] * pad_len + ids)
-            new_batch["mask"].append([False] * pad_len + [True] * len(ids))
-            new_batch["gold"].append(ex["gold"])
-        for key in ["mask", "input_ids"]: new_batch[key] = torch.tensor(new_batch[key])
-        return new_batch
-
-    def train(self, ds: Dataset, save_dir: str, batch_size: int=32):
-        run = wandb.init(project="Constrained_dec")
-        dl = DataLoader(ds, batch_size=batch_size, shuffle=True, collate_fn=self.collate_fn_train)
-        for batch in dl:
-            input_ids = batch["input_ids"].to(self.device)
-            prompt_mask = batch["prompt_mask"].to(self.device)
-            target_mask = batch["target_mask"].to(self.device)
-            pred = self.m.lm_head(self.m.model(input_ids=input_ids, attention_mask=prompt_mask, use_cache=False).last_hidden_state[:, :-1][target_mask])
-            target = input_ids[:, 1:][target_mask]
-            loss = torch.nn.functional.cross_entropy(pred.float(), target)
-            self.head_optim.zero_grad()
-            loss.backward()
-            self.head_optim.step()
-            run.log({"train-loss": loss.item()})
-        torch.save(self.head.state_dict(), save_dir)
-        run.finish()
-        return
-
-    def eval(self, ds: Dataset, batch_size: int=32):
+    
+    def eval(self, ds: Dataset, ds_name: str = "gsm", batch_size: int=32):
             run = wandb.init(project="Constrained_dec")
-            dl = DataLoader(ds, batch_size=batch_size, collate_fn=self.collate_fn_eval)
-            score = 0
-            in_format = 0
+            dl = DataLoader(ds, batch_size=batch_size)
+            correct = 0
+            c_model = outlines.from_transformers(self.model, self.tokenizer)
             for batch in dl:
-                input_ids = batch["input_ids"].to(self.device)
-                mask = batch["mask"].to(self.device)
-                prefix_len = input_ids.shape[1]
+                prompts = batch["prompts"]
                 gold = batch["gold"]
-                output = self.m.generate(input_ids=input_ids, attention_mask=mask, do_sample=False, max_new_tokens=self.max_new_tokens)
-                for i, ex in enumerate(output):
-                    text = self.tokenizer.decode(ex[prefix_len:], skip_special_tokens=True)
-                    score += self.scorer.score(text, gold[i], "int")
-                    in_format += self.scorer.check_in_format(text)
-
-            score = score / len(ds)
-            in_format = in_format / len(ds)
-            run.log({"score": score, "frac_in_format": in_format})
+                output = c_model.batch(prompts, Regex(ds_formats[ds_name]["answer_format"]), max_new_tokens=self.max_new_tokens, do_sample=False)
+                for i, text in enumerate(output):
+                    correct += score(text, gold[i])
+            run.log({"frac_correct": correct / len(ds)})
             run.finish()
             return
 
@@ -115,13 +68,11 @@ if __name__=="__main__":
     model = AutoModelForCausalLM.from_pretrained("/scratch/an4245/Qwen2.5-7B-Instruct", device_map="cuda", dtype=torch.bfloat16)
     tokenizer = AutoTokenizer.from_pretrained("/scratch/an4245/Qwen2.5-Instruct-Tokenizer")
     num_train = 5000
-    num_test = 250
+    num_test = 1000
     
     ds = load_from_disk("/scratch/an4245/gsm8k_format")
 
     math = ConstrainedDec(model, tokenizer)
-    math.eval(ds=ds["test"].select(range(num_test)), batch_size=128)
-    math.train(ds=ds["train"].select(range(num_train)), save_dir="/scratch/an4245/Qwen2.5-7-head")
-    math.eval(ds=ds["test"].select(range(num_test)), batch_size=128)
+    math.eval(ds=ds["test"], batch_size=128)
 
 
