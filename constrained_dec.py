@@ -11,7 +11,7 @@ from utils.scorers import Scorer
 
 
 class Head(torch.nn.Module):
-    def __init__(self, d: int, device: str = "cuda", dtype: torch.dtype = torch.float32):
+    def __init__(self, d: int, device: str = "auto", dtype: torch.dtype = torch.float32):
         super().__init__()
         self.f = torch.nn.Linear(d,d, device=device, dtype=dtype)
         torch.nn.init.zeros_(self.f.weight)
@@ -111,7 +111,7 @@ class ConstrainedDec():
         
        
 if __name__=="__main__":
-    model = AutoModelForCausalLM.from_pretrained("/scratch/an4245/Qwen2.5-7B-Instruct", device_map="cuda", dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained("/scratch/an4245/Qwen2.5-7B-Instruct", device_map="auto", dtype=torch.bfloat16)
     tokenizer = AutoTokenizer.from_pretrained("/scratch/an4245/Qwen2.5-Instruct-Tokenizer")
     num_train = 5000
     num_test = 250
