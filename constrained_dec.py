@@ -8,7 +8,7 @@ import wandb
 from datasets import load_from_disk
 from utils.score import score
 import outlines
-from outlines import Regex
+from outlines.types import Regex
 from utils.formatting import ds_formats
 
 
