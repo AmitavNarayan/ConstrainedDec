@@ -111,7 +111,7 @@ class ConstrainedDec():
         
        
 if __name__=="__main__":
-    model = AutoModelForCausalLM.from_pretrained("/scratch/an4245/Qwen2.5-7B-Instruct", device_map="auto", dtype=torch.bfloat16)
+    model = AutoModelForCausalLM.from_pretrained("/scratch/an4245/Qwen2.5-7B-Instruct", device_map="cuda", dtype=torch.bfloat16)
     tokenizer = AutoTokenizer.from_pretrained("/scratch/an4245/Qwen2.5-Instruct-Tokenizer")
     num_train = 5000
     num_test = 250
