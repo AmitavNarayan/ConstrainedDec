@@ -1,16 +1,15 @@
 
-
 import torch
-from transformers import AutoModelForCausalLM, AutoTokenizer 
+from transformers import AutoTokenizer 
 from datasets import Dataset
-from torch.utils.data import DataLoader
 import wandb
 from datasets import load_from_disk
-from utils.score import score
-import outlines
-from outlines.types import Regex
-from utils.formatting import ds_formats
+from utils.formatting import ds_formats, FMT, TASK, REWRITE
+from vllm import LLM, SamplingParams
+from vllm.sampling_params import StructuredOutputsParams
+import re
 
+       
 
 
 class Head(torch.nn.Module):
@@ -27,52 +26,63 @@ class Head(torch.nn.Module):
         output = self.forward(output).to(output.dtype)
         return output
 
+def score(ans: str, gold: int, ds: str = "gsm"):
+        result = re.fullmatch(ds_formats[ds]["answer_format"], ans.strip())
+        res = 0
+        if result: 
+                try: 
+                        if float(gold) == float(result.group(2).replace(",","")): res = 1
+                except ValueError: 
+                        pass
+        return res
 
     
 class ConstrainedDec():
-    def __init__(self, model: AutoModelForCausalLM,
-                 tokenizer: AutoTokenizer,
+    def __init__(self, tokenizer_path: str = "/scratch/an4245/Qwen2.5-Instruct-Tokenizer",
+                  model_path: str = "/scratch/an4245/Qwen2.5-7B-Instruct",
                  head_dtype: torch.dtype = torch.float32,
                  lr: float = 5e-4,
                  max_new_tokens: int = 512,
                  load_dir: str = None):
-        self.model = model
-        self.device = self.model.device
-        self.model.requires_grad_(False)
-        self.head = Head(self.model.config.hidden_size, self.device, head_dtype)
-        if load_dir is not None:  self.head.load_state_dict(torch.load(load_dir))
-        self.model.model.layers[-1].register_forward_hook(self.head.hook)
-        self.head_optim = torch.optim.AdamW(self.head.parameters(), lr=lr)
         self.max_new_tokens = max_new_tokens
-        self.tokenizer = tokenizer
-        
+        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
+        self.llm = LLM(model_path)
     
-    def eval(self, ds: Dataset, ds_name: str = "gsm", batch_size: int=32):
-            run = wandb.init(project="Constrained_dec")
-            dl = DataLoader(ds, batch_size=batch_size)
-            correct = 0
-            c_model = outlines.from_transformers(self.model, self.tokenizer)
-            for batch in dl:
-                prompts = batch["prompts"]
-                gold = batch["gold"]
-                output = c_model.batch(prompts, Regex(ds_formats[ds_name]["answer_format"]), max_new_tokens=self.max_new_tokens, do_sample=False)
-                for i, text in enumerate(output):
-                    correct += score(text, gold[i])
-            run.log({"frac_correct": correct / len(ds)})
-            run.finish()
-            return
+    def eval(self, ds: Dataset, ds_name: str = "gsm", batch_size: int=3):
+            run = wandb.init(project="Constrained_dec", group="two_turn_test")
+            ds_fmt = ds_formats[ds_name]
+            llm_input = lambda prompts, so = StructuredOutputsParams(regex=ds_fmt["answer_format"]): {
+                  "messages": [[{"role": "user", "content": p}] for p in prompts],
+                  "sampling_params": SamplingParams(max_tokens=self.max_new_tokens, 
+                                    temperature=0, 
+                                    structured_outputs=so)
+            }
+            qs = ds["question"]
+            turn_one_prompts = [TASK.format(question=q, **ds_fmt) for q in qs]
+            turn_one_output = self.llm.chat(**llm_input(turn_one_prompts, None))
+            turn_two_prompts = [(FMT+TASK+REWRITE).format(question=q, response=r.outputs[0].text, **ds_fmt) for r,q in zip(turn_one_output, qs)]
+            turn_two_output = self.llm.chat(**llm_input(turn_two_prompts))
+            std_prompts = [(FMT+TASK).format(question=q, **ds_fmt) for q in qs]
+            std_output = self.llm.chat(**llm_input(std_prompts))
+            two_turn_correct = 0
+            std_correct = 0
+            for a, x, y in zip(ds["answer"], turn_two_output, std_output):
+                gold = a.split("####")[-1].strip().replace(",", "")
+                two_turn_correct += score(x.outputs[0].text, gold)
+                std_correct += score(y.outputs[0].text, gold)
+            
+            run.log({"frac_correct_standard": std_correct / ds.num_rows})
+            run.log({"frac_correct_two_turn": two_turn_correct / ds.num_rows})
+            
+
 
         
-       
 if __name__=="__main__":
-    model = AutoModelForCausalLM.from_pretrained("/scratch/an4245/Qwen2.5-7B-Instruct", device_map="cuda", dtype=torch.bfloat16)
-    tokenizer = AutoTokenizer.from_pretrained("/scratch/an4245/Qwen2.5-Instruct-Tokenizer")
-    num_train = 5000
-    num_test = 1000
     
-    ds = load_from_disk("/scratch/an4245/gsm8k_format")
+    ds = load_from_disk("/scratch/an4245/gsm8k")["test"]
+    ConstrainedDec().eval(ds=ds, batch_size=128)
+   
 
-    math = ConstrainedDec(model, tokenizer)
-    math.eval(ds=ds["test"], batch_size=128)
+    
 
 

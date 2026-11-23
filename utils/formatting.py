@@ -1,14 +1,22 @@
-INSTRUCTION = """<format>
+FMT = """<format>
 Format your response exactly as follows:
 Reason: {reason}
 Answer: {answer}
 </format>
-<task>
+"""
+
+TASK = """<task>
 {task_des}
 {question}
 </task>
 """
 
+REWRITE = """
+<response>
+Rewrite the following response in the required format. Do not change the answer.
+{response}
+</response>
+"""
 
 
 ds_formats = {
