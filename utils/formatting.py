@@ -21,12 +21,15 @@ Rewrite the following response in the required format. Do not change the answer.
 
 ds_formats = {
     "gsm": {
-        "answer_format": r"\s*Reason:\s*([\s\S]*?)\s*\nAnswer:\s*(-?[\d,]+)\s*",
+        "answer_format": r"\s*Reason:\s*([\s\S]*?)\s*\nAnswer:\s*(-?\d[\d,]*)\s*",
         "reason":"<your reasoning>", 
         "answer":"<your answer, an integer>",
         "task_des":"Think through the following question, step by step."
     },
 }
+
+acc = r"-?\d[\d,]*"
+
 
 
 
