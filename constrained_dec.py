@@ -37,7 +37,7 @@ def add_head_to_vllm(m: LLM, head_path: str):
      
 
 
-def score(ans: str, gold: int, metric: str = "gsm"):
+def score(ans: str, gold: int, metric: str = "math"):
         if metric == "acc": 
             result = re.findall(acc, ans)
             if result: result = result[-1]
@@ -126,6 +126,6 @@ if __name__=="__main__":
     ds = load_from_disk(f"/scratch/an4245/competition_math")
     dir = f"/scratch/an4245/Llama-3.1-Tulu-3-8B-{model}_competition_math"
     cd = ConstrainedDec(dir, dir)
-    cd.eval(ds=ds["train"], run_name=f"Tulu-{model}")
+    cd.eval(ds=ds["train"], ds_name="competition_math", run_name=f"Tulu-{model}")
     
    
