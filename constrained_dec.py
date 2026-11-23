@@ -1,9 +1,8 @@
 
 import torch
 from transformers import AutoTokenizer 
-from datasets import Dataset
+from datasets import Dataset, load_dataset, load_from_disk
 import wandb
-from datasets import load_from_disk
 from utils.formatting import ds_formats, FMT, TASK, REWRITE
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
@@ -78,7 +77,6 @@ class ConstrainedDec():
 
         
 if __name__=="__main__":
-    
     ds = load_from_disk("/scratch/an4245/gsm8k")["test"]
     ConstrainedDec().eval(ds=ds, batch_size=128)
    
