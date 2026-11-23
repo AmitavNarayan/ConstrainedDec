@@ -3,11 +3,11 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import Dataset, load_dataset, load_from_disk
 import wandb
-from utils.formatting import ds_formats, EXACT_FMT, APPROX_FMT, REWRITE, TASK, acc
+from utils.formatting import ds_formats, FMT, TASK, REWRITE, acc
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 import re
-import copy
+import sys
 
        
 
@@ -45,7 +45,7 @@ def score(ans: str, gold: int, metric: str = "gsm"):
             result = re.fullmatch(ds_formats[metric]["answer_format"], ans.strip())
             if result: result = result[2]
         val = 0
-        if result: val = int(float(gold) == int(result.replace(",", "")))
+        if result: val = int(float(gold) == float(result.replace(",", "")))
         return val
 
 class ConstrainedDec():
@@ -108,23 +108,25 @@ class ConstrainedDec():
             self.ds_fmt, self.qs = ds_formats[ds_name], {"question": ds["question"]}
             run = wandb.init(project="Constrained_dec", name=run_name)
             so = StructuredOutputsParams(regex=self.ds_fmt["answer_format"])
-            e = self.generate(self.make_prompts(EXACT_FMT+TASK), so)
-            a = self.generate(self.make_prompts(APPROX_FMT+TASK), so)
-            e_val = 0
-            a_val = 0
-            for x, y, z in zip(e, a, ds["answer"]):
-                ans = z.split("####")[-1].strip().replace(",", "")
-                e_val += score(x, ans)
-                a_val += score(y, ans)
-            run.log({"correct_exact": e_val / len(ds["answer"])})
-            run.log({"correct_approx": a_val / len(ds["answer"])})
+            output = {}
+            output["std"] = self.generate(self.make_prompts(FMT+TASK), so)
+            output["one_turn"] = self.generate(self.make_prompts(TASK))
+            output["two_turn"] = self.generate(self.make_prompts(FMT+TASK+REWRITE, {"response": output["one_turn"]}), so)
+            ans = [a.split("####")[-1].strip().replace(",", "") for a in ds["answer"]]
+            vals = {
+                k: sum(score(o, g, "acc" if k == "one_turn" else "gsm") for o, g in zip(v, ans)) / len(ans)
+                for k, v in output.items()
+            }
+            run.log(vals)
+            wandb.finish()
 
             
         
 if __name__=="__main__":
     ds = load_from_disk("/scratch/an4245/gsm8k") 
-    head_path = "/scratch/an4245/cd_head"
-    cd = ConstrainedDec()
-    cd.eval(ds=ds["test"])
+    model = sys.argv[1]
+    dir = f"/scratch/an4245/OLMo-2-1124-7B-{model}"
+    cd = ConstrainedDec(dir, dir)
+    cd.eval(ds=ds["test"], run_name=model)
     
    

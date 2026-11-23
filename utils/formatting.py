@@ -1,13 +1,8 @@
-EXACT_FMT = """<format>
+FMT = """<format>
 Format your response exactly as follows:
 Reason: {reason}
 Answer: {answer}
 </format>
-"""
-
-APPROX_FMT = """Try your best to format your response in the following style.
-Reason: {reason}
-Answer: {answer}
 """
 
 
@@ -34,7 +29,7 @@ ds_formats = {
     },
 }
 
-acc = r"-?\d[\d,]*"
+acc = r"-?\d[\d,]*(?:\.\d+)?"
 
 
 
