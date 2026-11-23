@@ -109,8 +109,8 @@ class ConstrainedDec():
             run = wandb.init(project="Constrained_dec", name=run_name)
             so = StructuredOutputsParams(regex=self.ds_fmt["answer_format"])
             output = {}
-            output["std"] = self.generate(self.make_prompts(FMT+TASK))
-            output["one_turn"] = self.generate(self.make_prompts(TASK))
+            output["fmt+task"] = self.generate(self.make_prompts(FMT+TASK))
+            output["task"] = self.generate(self.make_prompts(TASK))
             ans = [a.split("####")[-1].strip().replace(",", "") for a in ds["answer"]]
             vals = {
                 k: sum(score(o, g, "acc") for o, g in zip(v, ans)) / len(ans)
