@@ -3,7 +3,7 @@ from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import Dataset, load_dataset, load_from_disk
 import wandb
-from utils.formatting import ds_formats, FMT, TASK, REWRITE, acc
+from utils.formatting import ds_formats, EXACT_FMT, APPROX_FMT, REWRITE, TASK, acc
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 import re
@@ -101,39 +101,23 @@ class ConstrainedDec():
 
 
     def train(self, ds: Dataset, ds_name: str = "gsm", batch_size: int=32, head_path: str = None):
-        self.head_path = head_path
-        self.ds_fmt, self.qs = ds_formats[ds_name], {"question": ds["question"]}
-        so = StructuredOutputsParams(regex=self.ds_fmt["answer_format"])
-        prompts = self.make_prompts(FMT+TASK)
-        ds = ds.add_column("prompt_ids", self.tokenizer.apply_chat_template(prompts, return_dict=False, tokenize=True, add_generation_prompt=True))
-        turn_one_output = self.generate(self.make_prompts(TASK))
-        turn_two_output = self.generate(self.make_prompts(FMT+TASK+REWRITE, {"response": turn_one_output}), so, ret_tokens=True)
-        ds = ds.add_column("target_ids", turn_two_output)
-        dl = DataLoader(ds, batch_size=batch_size, shuffle=True, collate_fn=self.collate_fn_train)
-        for batch in dl:
-            input_ids = batch["input_ids"].to(self.md)
-            prompt_mask = batch["prompt_mask"].to(self.md)
-            target_mask = batch["target_mask"].to(self.md)
-            pred = self.model.lm_head(self.model.model(input_ids=input_ids, attention_mask=prompt_mask, use_cache=False).last_hidden_state[:, :-1][target_mask])
-            target = input_ids[:, 1:][target_mask]
-            loss = torch.nn.functional.cross_entropy(pred.float(), target)
-            self.head_optim.zero_grad()
-            loss.backward()
-            self.head_optim.step()
-        if head_path is not None: torch.save(self.head.state_dict(), head_path)
+        
         return
 
     def eval(self, ds: Dataset, ds_name: str = "gsm", run_name: str = None):
             self.ds_fmt, self.qs = ds_formats[ds_name], {"question": ds["question"]}
             run = wandb.init(project="Constrained_dec", name=run_name)
             so = StructuredOutputsParams(regex=self.ds_fmt["answer_format"])
-    
-            head_output = self.generate(self.make_prompts(FMT+TASK), so, use_head=True)
-            val = 0
-            for output, ans in zip(head_output, ds["answer"]):
-                ans = ans.split("####")[-1].strip().replace(",", "")
-                val += score(output, ans)
-            run.log({"head_correct": val / len(ds["answer"])})
+            e = self.generate(self.make_prompts(EXACT_FMT+TASK), so)
+            a = self.generate(self.make_prompts(APPROX_FMT+TASK), so)
+            e_val = 0
+            a_val = 0
+            for x, y, z in zip(e, a, ds["answer"]):
+                ans = z.split("####")[-1].strip().replace(",", "")
+                e_val += score(x, ans)
+                a_val += score(y, ans)
+            run.log({"correct_exact": e_val / len(ds["answer"])})
+            run.log({"correct_approx": a_val / len(ds["answer"])})
 
             
         
@@ -141,7 +125,6 @@ if __name__=="__main__":
     ds = load_from_disk("/scratch/an4245/gsm8k") 
     head_path = "/scratch/an4245/cd_head"
     cd = ConstrainedDec()
-    cd.train(ds=ds["train"], head_path=head_path, batch_size=8)
     cd.eval(ds=ds["test"])
     
    

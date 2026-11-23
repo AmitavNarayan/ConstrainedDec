@@ -1,9 +1,15 @@
-FMT = """<format>
+EXACT_FMT = """<format>
 Format your response exactly as follows:
 Reason: {reason}
 Answer: {answer}
 </format>
 """
+
+APPROX_FMT = """Try your best to format your response in the following style.
+Reason: {reason}
+Answer: {answer}
+"""
+
 
 TASK = """<task>
 {task_des}
