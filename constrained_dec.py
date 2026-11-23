@@ -124,7 +124,7 @@ class ConstrainedDec():
 if __name__=="__main__":
     model = sys.argv[1]
     ds = load_from_disk(f"/scratch/an4245/competition_math")
-    dir = f"/scratch/an4245/Llama-3.1-Tulu-3-8B-{model}"
+    dir = f"/scratch/an4245/Llama-3.1-Tulu-3-8B-{model}_competition_math"
     cd = ConstrainedDec(dir, dir)
     cd.eval(ds=ds["train"], run_name=f"Tulu-{model}")
     
