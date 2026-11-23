@@ -56,7 +56,7 @@ class ConstrainedDec():
                  model_device: str = "cuda:0",
                  model_dtype: torch.dtype = torch.bfloat16,
                  head_path: str = None,
-                 vllm_mem_util: float = 0.5):
+                 vllm_mem_util: float = 0.9):
         self.max_new_tokens = max_new_tokens
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
         self.llm = LLM(model_path, gpu_memory_utilization = vllm_mem_util, enforce_eager=True, compilation_config={"mode": 0})
@@ -122,10 +122,10 @@ class ConstrainedDec():
             
         
 if __name__=="__main__":
-    ds = load_from_disk("/scratch/an4245/gsm8k") 
     model = sys.argv[1]
-    dir = f"/scratch/an4245/OLMo-2-1124-7B-{model}"
+    ds = load_from_disk(f"/scratch/an4245/competition_math")
+    dir = f"/scratch/an4245/Llama-3.1-Tulu-3-8B-{model}"
     cd = ConstrainedDec(dir, dir)
-    cd.eval(ds=ds["test"], run_name=model)
+    cd.eval(ds=ds["train"], run_name=f"Tulu-{model}")
     
    
