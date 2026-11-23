@@ -1,5 +1,5 @@
-
 import torch
+from torch.utils.data import DataLoader
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from datasets import Dataset, load_dataset, load_from_disk
 import wandb
@@ -7,6 +7,7 @@ from utils.formatting import ds_formats, FMT, TASK, REWRITE, acc
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 import re
+import copy
 
        
 
@@ -22,8 +23,19 @@ class Head(torch.nn.Module):
         y = x + self.f(x)
         return y
     def hook(self, module: torch.nn.Module, inputs: torch.Tensor, output: torch.Tensor):
-        output = self.forward(output).to(output.dtype)
-        return output
+        if isinstance(output, tuple): 
+            ret = (self.forward(output[0]).to(output[0].dtype), output[1])
+        else: 
+            ret = self.forward(output).to(output.dtype)
+        return ret
+
+def add_head_to_vllm(m: LLM, head_path: str):
+     head = Head(m.config.hidden_size)
+     head.load_state_dict(torch.load(head_path, map_location="cuda"))
+     handle = m.model.norm.register_forward_hook(head.hook)
+     return handle
+     
+
 
 def score(ans: str, gold: int, metric: str = "gsm"):
         if metric == "acc": 
@@ -36,60 +48,100 @@ def score(ans: str, gold: int, metric: str = "gsm"):
         if result: val = int(float(gold) == int(result.replace(",", "")))
         return val
 
-    
 class ConstrainedDec():
     def __init__(self, tokenizer_path: str = "/scratch/an4245/Qwen2.5-Instruct-Tokenizer",
                   model_path: str = "/scratch/an4245/Qwen2.5-7B-Instruct",
-                 head_dtype: torch.dtype = torch.float32,
                  lr: float = 5e-4,
                  max_new_tokens: int = 512,
-                 load_dir: str = None,
-                 num_gpus: int=2):
+                 model_device: str = "cuda:0",
+                 model_dtype: torch.dtype = torch.bfloat16,
+                 head_path: str = None,
+                 vllm_mem_util: float = 0.5):
         self.max_new_tokens = max_new_tokens
         self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_path)
-        self.llm = LLM(model_path, tensor_parallel_size=num_gpus)
+        self.llm = LLM(model_path, gpu_memory_utilization = vllm_mem_util, enforce_eager=True, compilation_config={"mode": 0})
+        self.md = model_device
+        self.model = AutoModelForCausalLM.from_pretrained(model_path, device_map=self.md, dtype=model_dtype)
+        self.model.requires_grad_(False)
+        self.head = Head(self.model.config.hidden_size, device=self.md)
+        self.model.model.norm.register_forward_hook(self.head.hook)
+        self.head_path = head_path
+        if self.head_path is not None: self.head.load_state_dict(torch.load(head_path))
+        self.head_optim = torch.optim.AdamW(self.head.parameters(), lr = lr)
+
+    def make_prompts(self, inst: str, format_args: dict[str, list] = {}):
+            format_args.update(self.qs)
+            fmts = [dict(zip(format_args, vals)) | self.ds_fmt for vals in zip(*format_args.values())]
+            prompts=[[{"role": "user", "content": inst.format(**x)}] for x in fmts]
+            return prompts
+
+    def generate(self, prompts: list[list[dict[str, str]]], 
+                 so: StructuredOutputsParams = None, 
+                 ret_tokens: bool = False, 
+                 use_head: bool = False):   
+        hp = self.head_path
+        if use_head: self.llm.apply_model(lambda m: setattr(m, "hook", add_head_to_vllm(m, hp)))
+        output = self.llm.chat(messages=prompts, 
+            sampling_params=SamplingParams(max_tokens=self.max_new_tokens, temperature=0, structured_outputs=so))
+        if use_head: self.llm.apply_model(lambda m: m.hook.remove())
+        ret = [x.outputs[0].token_ids for x in output] if ret_tokens else [x.outputs[0].text for x in output]
+        return ret
+
+    def collate_fn_train(self, batch):
+        new_batch = {"input_ids": [], "target_mask": [], "prompt_mask": []}
+        maxlen = max([len(ex["prompt_ids"] + ex["target_ids"]) for ex in batch])
+        for ex in batch:
+            input_ids = ex["prompt_ids"] + ex["target_ids"]
+            pad_len = maxlen - len(input_ids)
+            new_batch["input_ids"].append(input_ids + [self.tokenizer.pad_token_id] * pad_len)
+            new_batch["prompt_mask"].append([True] * len(input_ids) + [False] * pad_len)
+            new_batch["target_mask"].append([False] * (len(ex["prompt_ids"]) - 1) + [True] * len(ex["target_ids"]) + [False] * pad_len)
+        for key in ["prompt_mask", "target_mask", "input_ids"]: new_batch[key] = torch.tensor(new_batch[key])
+        return new_batch
 
 
+    def train(self, ds: Dataset, ds_name: str = "gsm", batch_size: int=32, head_path: str = None):
+        self.head_path = head_path
+        self.ds_fmt, self.qs = ds_formats[ds_name], {"question": ds["question"]}
+        so = StructuredOutputsParams(regex=self.ds_fmt["answer_format"])
+        prompts = self.make_prompts(FMT+TASK)
+        ds = ds.add_column("prompt_ids", self.tokenizer.apply_chat_template(prompts, return_dict=False, tokenize=True, add_generation_prompt=True))
+        turn_one_output = self.generate(self.make_prompts(TASK))
+        turn_two_output = self.generate(self.make_prompts(FMT+TASK+REWRITE, {"response": turn_one_output}), so, ret_tokens=True)
+        ds = ds.add_column("target_ids", turn_two_output)
+        dl = DataLoader(ds, batch_size=batch_size, shuffle=True, collate_fn=self.collate_fn_train)
+        for batch in dl:
+            input_ids = batch["input_ids"].to(self.md)
+            prompt_mask = batch["prompt_mask"].to(self.md)
+            target_mask = batch["target_mask"].to(self.md)
+            pred = self.model.lm_head(self.model.model(input_ids=input_ids, attention_mask=prompt_mask, use_cache=False).last_hidden_state[:, :-1][target_mask])
+            target = input_ids[:, 1:][target_mask]
+            loss = torch.nn.functional.cross_entropy(pred.float(), target)
+            self.head_optim.zero_grad()
+            loss.backward()
+            self.head_optim.step()
+        if head_path is not None: torch.save(self.head.state_dict(), head_path)
+        return
+
+    def eval(self, ds: Dataset, ds_name: str = "gsm", run_name: str = None):
+            self.ds_fmt, self.qs = ds_formats[ds_name], {"question": ds["question"]}
+            run = wandb.init(project="Constrained_dec", name=run_name)
+            so = StructuredOutputsParams(regex=self.ds_fmt["answer_format"])
     
-    def eval(self, ds: Dataset, ds_name: str = "gsm", batch_size: int=3):
-            run = wandb.init(project="Constrained_dec", group="two_turn_test")
-            ds_fmt = ds_formats[ds_name]
-            llm_input = lambda prompts, so = StructuredOutputsParams(regex=ds_fmt["answer_format"]): {
-                  "messages": [[{"role": "user", "content": p}] for p in prompts],
-                  "sampling_params": SamplingParams(max_tokens=self.max_new_tokens, 
-                                    temperature=0, 
-                                    structured_outputs=so)
-            }
-            qs = ds["question"]
-            turn_one_prompts = [TASK.format(question=q, **ds_fmt) for q in qs]
-            turn_one_output = self.llm.chat(**llm_input(turn_one_prompts, None))
-            turn_two_prompts = [(FMT+TASK+REWRITE).format(question=q, response=r.outputs[0].text, **ds_fmt) for r,q in zip(turn_one_output, qs)]
-            turn_two_output = self.llm.chat(**llm_input(turn_two_prompts))
-            std_prompts = [(FMT+TASK).format(question=q, **ds_fmt) for q in qs]
-            std_output = self.llm.chat(**llm_input(std_prompts))
-            std_no_cd_prompts = [(FMT+TASK).format(question=q, **ds_fmt) for q in qs]
-            std_no_cd_output = self.llm.chat(**llm_input(std_no_cd_prompts, None))
-            std_no_cd_correct = 0
-            two_turn_correct = 0
-            std_correct = 0
-            
-            for a, x, y, z in zip(ds["answer"], turn_two_output, std_output, std_no_cd_output):
-                gold = a.split("####")[-1].strip().replace(",", "")
-                two_turn_correct += score(x.outputs[0].text, gold)
-                std_correct += score(y.outputs[0].text, gold)
-                std_no_cd_correct += score(z.outputs[0].text, gold, "acc")
-            run.log({"frac_correct_standard_no_cd": std_no_cd_correct / ds.num_rows})
-            run.log({"frac_correct_standard": std_correct / ds.num_rows})
-            run.log({"frac_correct_two_turn": two_turn_correct / ds.num_rows})
-            
+            head_output = self.generate(self.make_prompts(FMT+TASK), so, use_head=True)
+            val = 0
+            for output, ans in zip(head_output, ds["answer"]):
+                ans = ans.split("####")[-1].strip().replace(",", "")
+                val += score(output, ans)
+            run.log({"head_correct": val / len(ds["answer"])})
 
-
+            
         
 if __name__=="__main__":
-    ds = load_from_disk("/scratch/an4245/gsm8k")["test"]
-    ConstrainedDec().eval(ds=ds, batch_size=128)
-   
-
+    ds = load_from_disk("/scratch/an4245/gsm8k") 
+    head_path = "/scratch/an4245/cd_head"
+    cd = ConstrainedDec()
+    cd.train(ds=ds["train"], head_path=head_path, batch_size=8)
+    cd.eval(ds=ds["test"])
     
-
-
+   
