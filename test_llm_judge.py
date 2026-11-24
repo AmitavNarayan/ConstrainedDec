@@ -7,7 +7,8 @@ ds_name, splits = "QAEval", ["test", "train", "val"]
 max_tokens = 100
 prompt = """Extract the final answer from the model response below.
 
-Return only the extracted answer. Do not solve the original question, evaluate whether the answer is correct, or use outside knowledge.
+Return the extracted answer without any other text. Return the extracted answer without any other text. 
+Return the extracted answer without any other text. Return the extracted answer without any other text. 
 <response>
 {response}
 </response>
