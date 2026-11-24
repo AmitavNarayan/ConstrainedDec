@@ -41,7 +41,7 @@ ds_fmts = {
     "medqa": {"text_fmt": "a single letter: A, B, C, D, or E",
                 "regex_fmt": r"[A-E]"},
     "finqa": {"text_fmt": "a single numeric value.",
-              "regex_fmt": r"-?\d+(\.\d+)?%?"},
+              "regex_fmt": r"-?\d[\d,]*(\.\d+)?%?"
 
 }
 

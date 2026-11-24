@@ -57,6 +57,7 @@ class ConstrainedDec():
             elif self.ds_name == "medqa": 
                  score += ea == g
             elif self.ds_name == "finqa": 
+                ea.replace(",", "")
                 if "%" in ea: 
                     ea = ea.replace("%", "")
                     ea = float(ea) / 100
