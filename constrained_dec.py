@@ -6,8 +6,9 @@ import wandb
 from utils.formatting import ds_formats, FMT, TASK, REWRITE, acc
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
+import argparse
 import re
-import sys
+from math_verify 
 
        
 
@@ -37,10 +38,14 @@ def add_head_to_vllm(m: LLM, head_path: str):
      
 
 
-def score(ans: str, gold: int, metric: str = "math"):
-        if metric == "acc": 
-            result = re.findall(acc, ans)
-            if result: result = result[-1]
+def score(ans: str, gold: str, metric: str):
+        val = 0
+        ans = ans.strip()
+        if metric == "gpqa":
+            final_ans = ans[-1]
+            if final_ans == "gold": val = 1
+        if metric == "aime"
+            final_ans = re.findall(r'-?\d+', ans)[-1]
         else: 
             result = re.fullmatch(ds_formats[metric]["answer_format"], ans.strip())
             if result: result = result[2]
@@ -100,7 +105,7 @@ class ConstrainedDec():
         return new_batch
 
 
-    def train(self, ds: Dataset, ds_name: str = "gsm", batch_size: int=32, head_path: str = None):
+    def train(self, ds: Dataset, ds_name: str, batch_size: int=32, head_path: str = None):
         
         return
 
@@ -122,10 +127,17 @@ class ConstrainedDec():
             
         
 if __name__=="__main__":
-    model = sys.argv[1]
-    ds = load_from_disk(f"/scratch/an4245/competition_math")
-    dir = f"/scratch/an4245/Llama-3.1-Tulu-3-8B-{model}_competition_math"
-    cd = ConstrainedDec(dir, dir)
-    cd.eval(ds=ds["train"], ds_name="competition_math", run_name=f"Tulu-{model}")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset")
+    parser.add_argument("--model-type")
+    parser.add_argument("--model-name")
+    args = parser.parse_args()
+    d, mt, mn = args.dataset, args.model_type, args.model_name
+    stem = "/scratch/an4245/"
+    ds = load_from_disk(f"{stem}{d}")
+    if mn=="tulu": m = f"{stem}Llama-3.1-Tulu-3-8B-{mt}" 
+    if mn=="olmo": m = f"{stem}OLMo-2-1124-7B-{mt}"
+    cd = ConstrainedDec(m, m)
+    cd.eval(ds=ds["train"], ds_name=d, run_name=f"{mt}-{mn}")
     
    
