@@ -8,7 +8,6 @@ max_tokens = 100
 prompt = """Extract the final answer from the model response below.
 
 Return the extracted answer without any other text. Return the extracted answer without any other text. 
-Return the extracted answer without any other text. Return the extracted answer without any other text. 
 <response>
 {response}
 </response>
