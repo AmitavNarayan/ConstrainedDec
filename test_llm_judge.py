@@ -20,8 +20,8 @@ outputs = llm.chat([[{"role": "user", "content": prompt.format(response=ex["resp
 score = 0
 for ex, o in zip(ds, outputs):
     x, y = ex["extracted_answer"], o.outputs[0].text.strip()
-    print(x)
-    print(y)
+    print(f"Gold:{x}")
+    print(f"Pred:{y}")
     score += int(x==y)
     print()
 score = score / len(outputs)
