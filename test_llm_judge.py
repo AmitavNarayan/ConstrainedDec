@@ -5,8 +5,7 @@ from vllm import LLM, SamplingParams
 model_path = "/scratch/an4245/OLMo-2-1124-7B-Instruct"
 ds_name, splits = "QAEval", ["test", "train", "val"]
 max_tokens = 100
-prompt = """Extract the final answer from the model response below.
-
+prompt = """By examining the question and observi
 Return the extracted answer without any other text. Do not solve the original question.
 Do not modify the formatting, wording, order, or explanation of the answer.
 <question>
