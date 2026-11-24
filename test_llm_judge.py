@@ -1,6 +1,5 @@
 
 import json
-from datasets import Dataset
 from vllm import LLM, SamplingParams
 
 model_path = "/scratch/an4245/OLMo-2-1124-7B-Instruct"
@@ -15,11 +14,7 @@ Return only the extracted answer. Do not solve the original question, evaluate w
 Extracted answer: """
 
 llm = LLM(model_path)
-ds = Dataset.from_list([
-    ex
-    for s in splits
-    for ex in json.load(open(f"/scratch/an4245/{ds_name}/{s}.json")).values()
-])
+ds = [ex for s in splits for ex in json.load(open(f"/scratch/an4245/{ds_name}/{s}.json")).values()]
 outputs = llm.chat([[{"role": "user", "content": prompt.format(ex["response"])}] for ex in ds], sampling_params=SamplingParams(max_tokens=max_tokens, temperature=0))
 score = sum(int(ex["extracted_answer"]==y.outputs[0].text.strip()) for ex, y in zip(ds, outputs)) / len(outputs)
 print(score)
