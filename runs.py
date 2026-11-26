@@ -34,13 +34,12 @@ Your answer should be {answer_des}.
 """
 
 from dataclasses import dataclass
-from datasets import Dataset, load_dataset
 import pickle
-import os
 
 @dataclass
 class RunInfo():
     model_name: str
+    ds_name: str
     inputs: list[str] = None
     outputs: list[str] = None
     max_tokens: int = 100
@@ -60,10 +59,10 @@ class Run():
         with open(path, "rb") as f:
             return pickle.load(f)
 
-    def __init__(self, gen_model_name: str, judge_model_name: str, save_path: str = None):
+    def __init__(self, ds_name: str, gen_model_name: str, judge_model_name: str, save_path: str = None):
         self.save_path = save_path
-        self.gen = RunInfo(gen_model_name)
-        self.judge = RunInfo(judge_model_name)
+        self.gen = RunInfo(gen_model_name, ds_name)
+        self.judge = RunInfo(judge_model_name, ds_name)
 
     def save(self):
         if self.save_path is not None:
@@ -111,23 +110,35 @@ class GSMRun(Run):
         return float(pred) == float(gold.strip().replace(",", "").split("#### ")[-1])
 
 
-def judge_or_generate(run: Run, mode: str, gpu_mem_util: float = 0.3):
-    info = run.judge if mode=="judge" else run.gen
-
+def judge(run: Run, gpu_mem_util: float = 0.3):
     from vllm import LLM, SamplingParams
     from vllm.sampling_params import StructuredOutputsParams
-
     llm = LLM(info.model_name, max_model_len = info.max_model_len, gpu_memory_utilization=gpu_mem_util)
     params = SamplingParams(temperature=info.temp, 
                             max_tokens = info.max_tokens,
                             structured_outputs = StructuredOutputsParams(regex=info.regex) if info.so else None)
     outputs = llm.chat(info.inputs, params)
-    run.add_judge_outputs(outputs) if mode=="judge" else run.add_gen_outputs(outputs)
+    run.add_judge_outputs(outputs)
 
+def generate(run: Run, gpu_mem_util: float = 0.3):
+    from datasets import load_dataset
+    info = run.gen
+    run.add_gen_inputs(load_dataset(info.ds_name))
+    llm = LLM(info.model_name, max_model_len = info.max_model_len, gpu_memory_utilization=gpu_mem_util)
+    params = SamplingParams(temperature=info.temp, 
+                            max_tokens = info.max_tokens,
+                            structured_outputs = StructuredOutputsParams(regex=info.regex) if info.so else None)
+    outputs = llm.chat(info.inputs, params)
+    run.add_gen_outputs
 
 
 if __name__=="__main__":
-    gr1 = GSMRun.load_from_path("run.pkl")
+    gr1 = GSMRun(
+                "mlx-community/SmolLM2-135M-Instruct",
+                "mlx-community/Llama-3.2-1B-Instruct-4bit",
+                "gsmrun.pkl"
+                )
+
     judge_or_generate(gr1, "judge")
 
     with open("run.pkl", "rb") as f: 
