@@ -134,7 +134,6 @@ def generate(run: Run, gpu_mem_util: float = 0.3):
 
 if __name__=="__main__":
     gr1 = GSMRun(
-                
                 "mlx-community/SmolLM2-135M-Instruct",
                 "mlx-community/Llama-3.2-1B-Instruct-4bit",
                 "gsmrun.pkl",
