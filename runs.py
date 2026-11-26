@@ -100,7 +100,7 @@ class Run():
 
 class GSMRun(Run):
     def __init__(self, gen_model_name: str, judge_model_name: str, save_path: str):
-        super().__init__(gen_model_name, judge_model_name, save_path)
+        super().__init__("apple/GSM-Symbolic", gen_model_name, judge_model_name, save_path)
         self.gen.answer_des = "a single integer"
         self.judge.answer_des =  "a single integer"
         self.judge.max_tokens = 20
@@ -134,14 +134,17 @@ def generate(run: Run, gpu_mem_util: float = 0.3):
 
 if __name__=="__main__":
     gr1 = GSMRun(
+                
                 "mlx-community/SmolLM2-135M-Instruct",
                 "mlx-community/Llama-3.2-1B-Instruct-4bit",
-                "gsmrun.pkl"
+                "gsmrun.pkl",
                 )
 
-    judge_or_generate(gr1, "judge")
+    generate(gr1)
+    judge(gr1)
 
-    with open("run.pkl", "rb") as f: 
+
+    with open("gsmrun.pkl", "rb") as f: 
         obj = pickle.load(f)
         print(obj.judge.outputs) 
 
