@@ -44,11 +44,11 @@ from statistics import mean
 @dataclass(frozen=True)
 class ModelConfig():
     name = "OLMo-2-1124-7B-Instruct"
-    model_name: str = None
+    model_path: str = None
     max_model_len: int = 8192
     gpu_mem_util: float = 0.3
     def __post_init__(self):
-        object.__setattr__(self, "model_name", f"ROOT/{self.name}")
+        object.__setattr__(self, "model_path", f"{ROOT}/{self.name}")
 
 @dataclass(frozen=True)
 class GenConfig():
@@ -79,8 +79,7 @@ class DataConfig():
         return SCORERS[self.name](preds, self.ans)
 
 def save(m: ModelConfig, dcs: list[DataConfig], gcs: list[GenConfig], qs: list[list[str]], preds: list[list[str]]):
-    save_dir = f"{ROOT}/{m.model_name}"
     for dc, gc, q_list, pred_list in zip(dcs, gcs, qs, preds):
-        with open(f"ROOT/{dc.name}/{dc.answer_des}", "w") as f:
+        with open(f"{m.model_path}/{dc.name}/{dc.answer_des}", "w") as f:
             json.dump([asdict(m), asdict(dc), asdict(gc), q_list, pred_list], f)
 
