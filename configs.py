@@ -4,7 +4,8 @@ def gsm_score(preds: list[str], ans: list[str]) -> float:
 SCORERS = {"gsm": gsm_score}
 INDENT = 4
 REGEX = {"gsm": r"-?\d+(\.\d+)?"}
-DIRS = {"mlx":"mlx-community/", "personal": "", "hpc": "scratch/an4245/", "allen": "allenai/"}
+ORIGINS = {"mlx": "mlx-community/", "allen": "allenai/"}
+DIRS = {"personal": "", "hpc": "scratch/an4245/"}
 INDENT = 4
 INST = {
     "judge": """Given a task and a response, extract the answer from the response.
@@ -48,12 +49,12 @@ import json
 @dataclass(frozen=True)
 class ModelConfig():
     name = "Qwen2.5-7B-Instruct-4bit"# "OLMo-2-1124-7B-Instruct"
-    model_origin: str = "mlx"
+    origin: str = "mlx"
     max_model_len: int = None
     gpu_mem_util: float = 0.9
     def __post_init__(self):
         # ROOT}/
-        object.__setattr__(self, "model_origin", DIRS[self.model_origin])
+        object.__setattr__(self, "origin", DIRS[self.origin])
 
 @dataclass(frozen=True)
 class GenConfig():
