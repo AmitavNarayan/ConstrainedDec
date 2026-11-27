@@ -1,3 +1,4 @@
+run_id = 0
 def gsm_score(preds: list[str], ans: list[str]) -> float:
     return mean([float(p) == float(a.strip().replace(",", "").split("#### ")[-1]) for (p, a) in zip(preds, ans)])
 SCORERS = {"gsm": gsm_score}
@@ -37,6 +38,7 @@ INST = {
 from dataclasses import dataclass, asdict
 from datasets import load_dataset
 from statistics import mean
+import datetime
 
 
 
@@ -80,6 +82,6 @@ class DataConfig():
 
 def save(m: ModelConfig, dcs: list[DataConfig], gcs: list[GenConfig], qs: list[list[str]], preds: list[list[str]]):
     for dc, gc, q_list, pred_list in zip(dcs, gcs, qs, preds):
-        with open(f"{m.model_path}/{dc.name}/{dc.answer_des}", "w") as f:
-            json.dump([asdict(m), asdict(dc), asdict(gc), q_list, pred_list], f)
+        with open(f"{ROOT}/runs/{m.name}-{dc.name}-{datetime.now().strftime('%m%d-%H%M%S')}.json", "w") as f:
+            json.dump([asdict(m), asdict(dc), asdict(gc), q_list, pred_list], f, default=str)
 
