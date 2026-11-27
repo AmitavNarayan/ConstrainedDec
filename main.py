@@ -5,10 +5,11 @@ import wandb
 import sys
 if __name__=="__main__":
     m = ModelConfig(model_path=sys.argv[1])
-    dcs, gcs, qs  = [DataConfig(["task"])], [GenConfig()], [dc.qs for dc in dcs]
+    dcs, gcs = [DataConfig(["task"])], [GenConfig()]
+    qs  = [dc.qs for dc in dcs]
     preds = Generator(m).predict(dcs, gcs, qs)
     save(m, dcs, gcs, qs, preds)
-    dcs = [DataConfig(["task", "fmt"])]
-    preds = Generator(m).predict(dcs, gcs, qs)
+    dcs, gcs = [DataConfig(["task", "fmt"])], [GenConfig()]
+    judged = Generator(m).predict(dcs, gcs, preds)
     save(m, dcs, gcs, qs, preds)
     
