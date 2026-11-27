@@ -3,8 +3,8 @@ def gsm_score(preds: list[str], ans: list[str]) -> float:
 SCORERS = {"gsm": gsm_score}
 INDENT = 4
 REGEX = {"gsm": r"-?\d+(\.\d+)?"}
-ORIGINS = {"mlx": "mlx-community/", "allen": "allenai/", "qwen": "qwen"}
-DIRS = {"personal": "", "hpc": "scratch/an4245/"}
+ORIGINS = {"mlx": "mlx-community/", "allen": "allenai/", "qwen": "qwen/"}
+DIRS = {"personal": "", "hpc": "/scratch/an4245/"}
 INST = {
     "judge": """Given a task and a response, extract the answer from the response.
     The answer should be in the form described by the task, but should not be modified
