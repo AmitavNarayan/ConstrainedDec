@@ -48,7 +48,7 @@ class ModelConfig():
     max_model_len: int = 8192
     gpu_mem_util: float = 0.3
     def __post_init__(self):
-        object.__setattr__(self, "model_name", f"{BASE_DIR}/{name}")
+        object.__setattr__(self, "model_name", f"ROOT/{name}")
 
 @dataclass(frozen=True)
 class GenConfig():
