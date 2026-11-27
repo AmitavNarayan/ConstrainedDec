@@ -81,6 +81,6 @@ class DataConfig():
 def save(m: ModelConfig, dcs: list[DataConfig], gcs: list[GenConfig], qs: list[list[str]], preds: list[list[str]]):
     save_dir = f"{ROOT}/{m.model_name}"
     for dc, gc, q_list, pred_list in zip(dcs, gcs, qs, preds):
-        with open(f"{save_dir}/{dc.name}/{dc.answer_des}", "w") as f:
+        with open(f"ROOT/{dc.name}/{dc.answer_des}", "w") as f:
             json.dump([asdict(m), asdict(dc), asdict(gc), q_list, pred_list], f)
 
