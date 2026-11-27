@@ -38,7 +38,7 @@ INST = {
 from dataclasses import dataclass, asdict
 from datasets import load_dataset
 from statistics import mean
-import datetime
+from datetime import datetime
 
 
 
