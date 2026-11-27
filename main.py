@@ -9,7 +9,5 @@ if __name__=="__main__":
     qs  = [dc.qs for dc in dcs]
     preds = Generator(m).predict(dcs, gcs, qs)
     save(m, dcs, gcs, qs, preds)
-    dcs, gcs = [DataConfig(["task", "fmt"])], [GenConfig()]
-    judged = Generator(m).predict(dcs, gcs, preds)
-    save(m, dcs, gcs, qs, preds)
+
     
