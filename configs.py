@@ -1,12 +1,10 @@
-run_id = 0
 def gsm_score(preds: list[str], ans: list[str]) -> float:
     return mean([float(p) == float(a.strip().replace(",", "").split("#### ")[-1]) for (p, a) in zip(preds, ans)])
 SCORERS = {"gsm": gsm_score}
 INDENT = 4
 REGEX = {"gsm": r"-?\d+(\.\d+)?"}
-ORIGINS = {"mlx": "mlx-community/", "allen": "allenai/"}
+ORIGINS = {"mlx": "mlx-community/", "allen": "allenai/", "qwen": "qwen"}
 DIRS = {"personal": "", "hpc": "scratch/an4245/"}
-INDENT = 4
 INST = {
     "judge": """Given a task and a response, extract the answer from the response.
     The answer should be in the form described by the task, but should not be modified
@@ -48,13 +46,12 @@ import json
 
 @dataclass(frozen=True)
 class ModelConfig():
-    name = "Qwen2.5-7B-Instruct-4bit"# "OLMo-2-1124-7B-Instruct"
-    origin: str = "mlx"
+    name: str = None
+    origin: str = None
     max_model_len: int = None
     gpu_mem_util: float = 0.9
     def __post_init__(self):
-        # ROOT}/
-        object.__setattr__(self, "origin", DIRS[self.origin])
+        object.__setattr__(self, "origin", ORIGINS[self.origin])
 
 @dataclass(frozen=True)
 class GenConfig():
@@ -72,11 +69,12 @@ class DataConfig():
     name: str = "gsm"
     ds_name: str = "apple/GSM-Symbolic"
     split: str = "test"
-    indices: list = range(5000)
+    max_idx: int = None
     answer_des: str = "a single integer"
 
     def __post_init__(self):
-        ds = load_dataset(self.ds_name, split=self.split).select(self.indices)
+        ds = load_dataset(self.ds_name, split=self.split)
+        if self.max_idx: ds = ds.select(range(self.max_idx))
         object.__setattr__(self, "inst", "".join([INST[msg] for msg in self.msgs]))
         object.__setattr__(self, "qs", ds[self.q_name])
         object.__setattr__(self, "ans", ds[self.a_name])

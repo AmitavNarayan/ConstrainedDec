@@ -4,7 +4,7 @@ from vllm.sampling_params import StructuredOutputsParams
 
 class Generator:
     def __init__(self, m: ModelConfig):
-        self.llm = LLM(m.model_origin+m.name, max_model_len = m.max_model_len, gpu_memory_utilization=m.gpu_mem_util)
+        self.llm = LLM(m.origin+m.name, max_model_len = m.max_model_len, gpu_memory_utilization=m.gpu_mem_util)
     def generate(self, msg_contents: list[list[str]], gs: list[GenConfig]) -> list[list[str]]:
         params = []
         inputs = []
