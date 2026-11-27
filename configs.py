@@ -45,8 +45,8 @@ from statistics import mean
 class ModelConfig():
     name = "OLMo-2-1124-7B-Instruct"
     model_path: str = None
-    max_model_len: int = 8192
-    gpu_mem_util: float = 0.3
+    max_model_len: int = None
+    gpu_mem_util: float = 0.9
     def __post_init__(self):
         object.__setattr__(self, "model_path", f"{ROOT}/{self.name}")
 
