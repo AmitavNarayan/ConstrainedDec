@@ -14,7 +14,7 @@ if __name__=="__main__":
 
 
     m = ModelConfig(origin=args.model_origin, name=args.model_name)
-    dcs = [DataConfig(ad.split(","), max_idx = mv[i] if mv else None) for i, ad in enumerate(args.answer_descriptions)], 
+    dcs = [DataConfig(ad.split(","), max_idx = args.max_vals[i] if args.max_vals else None) for i, ad in enumerate(args.answer_descriptions)], 
     gcs = [GenConfig()]
     qs  = [dc.qs for dc in dcs]
     preds = Generator(m).predict(dcs, gcs, qs)
