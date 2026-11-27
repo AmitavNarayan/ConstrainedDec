@@ -2,9 +2,10 @@ run_id = 0
 def gsm_score(preds: list[str], ans: list[str]) -> float:
     return mean([float(p) == float(a.strip().replace(",", "").split("#### ")[-1]) for (p, a) in zip(preds, ans)])
 SCORERS = {"gsm": gsm_score}
-
+INDENT = 4
 REGEX = {"gsm": r"-?\d+(\.\d+)?"}
-ROOT = "/scratch/an4245"
+DIRS = {"mlx":"mlx-community/", "personal": "", "hpc": "scratch/an4245/", "allen": "allenai/"}
+INDENT = 4
 INST = {
     "judge": """Given a task and a response, extract the answer from the response.
     The answer should be in the form described by the task, but should not be modified
@@ -39,18 +40,20 @@ from dataclasses import dataclass, asdict
 from datasets import load_dataset
 from statistics import mean
 from datetime import datetime
-
+import os
+import json
 
 
 
 @dataclass(frozen=True)
 class ModelConfig():
-    name = "OLMo-2-1124-7B-Instruct"
-    model_path: str = None
+    name = "Qwen2.5-7B-Instruct-4bit"# "OLMo-2-1124-7B-Instruct"
+    model_origin: str = "mlx"
     max_model_len: int = None
     gpu_mem_util: float = 0.9
     def __post_init__(self):
-        object.__setattr__(self, "model_path", f"{ROOT}/{self.name}")
+        # ROOT}/
+        object.__setattr__(self, "model_origin", DIRS[self.model_origin])
 
 @dataclass(frozen=True)
 class GenConfig():
@@ -80,8 +83,10 @@ class DataConfig():
     def score(self, preds: list[str]) -> float:
         return SCORERS[self.name](preds, self.ans)
 
-def save(m: ModelConfig, dcs: list[DataConfig], gcs: list[GenConfig], qs: list[list[str]], preds: list[list[str]]):
+def save(save_dir: str, m: ModelConfig, dcs: list[DataConfig], gcs: list[GenConfig], qs: list[list[str]], preds: list[list[str]]):
+    base = f"{DIRS[save_dir]}runs"
+    if not os.path.exists(base): os.mkdir(base) 
     for dc, gc, q_list, pred_list in zip(dcs, gcs, qs, preds):
-        with open(f"{ROOT}/runs/{m.name}-{dc.name}-{datetime.now().strftime('%m%d-%H%M%S')}.json", "w") as f:
-            json.dump([asdict(m), asdict(dc), asdict(gc), q_list, pred_list], f, default=str)
+        with open(f"{base}/{m.name}-{dc.name}-{datetime.now().strftime('%m%d-%H%M%S')}.json", "w") as f:
+            json.dump([asdict(m), asdict(dc), asdict(gc), q_list, pred_list], f, default=str, indent=INDENT)
 
