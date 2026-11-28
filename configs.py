@@ -103,6 +103,15 @@ INST = {
     <question>
     {question}
     </question>
+    """,
+
+    "no_spec_task":
+    """<task>
+    Think through the following question, step by step.
+    </task>
+    <question>
+    {question}
+    </question>
     """
     }
 
