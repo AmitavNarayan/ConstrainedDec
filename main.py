@@ -19,7 +19,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     root = DIRS[args.dir]
-    m = ModelConfig(origin=args.model_origin, name=args.model_name)
+    m = ModelConfig(origin=args.model_origin, name=args.model_name,
+                    max_model_len=args.max_model_len, num_gpus=args.num_gpus)
 
     gen = Generator(m)
     if args.judge:
