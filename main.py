@@ -14,6 +14,8 @@ if __name__ == "__main__":
     parser.add_argument("--model-name", default="OLMo-2-1124-7B-Instruct")
     parser.add_argument("--model-origin", default="allen")
     parser.add_argument("--judge", action="store_true")
+    parser.add_argument("--num-gpus", type=int, default=1)
+    parser.add_argument("--max-model-len", type=int)
     args = parser.parse_args()
 
     root = DIRS[args.dir]

@@ -7,7 +7,8 @@ class Generator:
     def __init__(self, m: ModelConfig):
 
         self.llm = LLM(m.path, max_model_len=m.max_model_len,
-                       gpu_memory_utilization=m.gpu_mem_util)
+                       gpu_memory_utilization=m.gpu_mem_util,
+                        tensor_parallel_size=m.num_gpus)
 
     def generate(self, msg_contents: list[list[str]], gcs: list[GenConfig]):
         inputs = [[[{"role": "user", "content": c}] for c in mc] for mc in msg_contents]

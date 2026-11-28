@@ -85,6 +85,7 @@ class ModelConfig:
     origin: str = None
     max_model_len: int = None
     gpu_mem_util: float = 0.9
+    num_gpus: int = 1
 
     @property
     def path(self) -> str:
