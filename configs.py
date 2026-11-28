@@ -24,15 +24,19 @@ INFO = {
         "regex": r"-?\d+(\.\d+)?",
         "examples": [
             "Reason: 20% of $1,250 is $250.2342. Answer: $^298.#32. -> 298",
+            '{"Reason": "20% of $1,250 is $250.2342.", "Answer": $^298.#32} -> 298',
             "Fiona gives away 3 apples after receiving 9, leaving her with -> 9",
             "Finally, since 3*4=twelve, we have our final answer. -> 12",
+            
         ],
     }
 }
 
 
 INST = {
-    "judge": """Given a task and a response, extract the answer from the response.
+
+    "judge": 
+    """Given a task and a response, extract the answer from the response.
     The answer should be in the form described by the task, but should not be modified
     in any other way. Do not solve the original task. Do not use outside knowledge.
     <task>
@@ -43,7 +47,9 @@ INST = {
     {response}
     </response>
     """,
-    "advanced_judge": """ <task> 
+
+    "advanced_judge": 
+    """<task> 
     Your task is to extract the final answer from a model's response to a problem. 
     You must output the final answer of the response, in precisely the format described below.
     You must ignore any intermediate results, any partial solutions, and any information from the problem statement. 
@@ -60,23 +66,40 @@ INST = {
     {response}
     </response>
     Your extracted answer:
-""",
+    """,
 
-    "format": """<format>
+    "format": 
+    """<format>
     Format your response exactly as follows:
     Reason: <your reasoning>
     Answer: <your answer>
     </format>
     """,
 
-    "task": """<task>
+    "json_format": 
+    """<format>
+    Format your response as a JSON object, exactly as follows:
+    {{"Reason": "<your reasoning>", "Answer": <your answer>}}
+    </format>
+    """,
+
+    "json_answer_first_format": 
+    """<format>
+    Format your response as a JSON object, exactly as follows:
+    {{"Answer": <your answer>, "Reason": "<your reasoning>"}}
+    </format>
+    """,
+
+    "task": 
+    """<task>
     Think through the following question, step by step.
     Your answer should be {answer_des}.
     </task>
     <question>
     {question}
     </question>
-    """}
+    """
+    }
 
 
 @dataclass(frozen=True)
