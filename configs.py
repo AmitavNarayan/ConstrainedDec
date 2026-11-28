@@ -137,5 +137,11 @@ class JudgeConfig:
         info = INFO[self.name]
         if self.answer_des is None:
             object.__setattr__(self, "answer_des", info["answer_des"])
+        ds = load_dataset(info["ds_name"], split=self.split)
+        if self.max_idx:
+            ds = ds.select(range(self.max_idx))
+        object.__setattr__(self, "inst", "".join(INST[msg] for msg in self.msgs))
+        object.__setattr__(self, "examples", "\n    ".join(info["examples"]))
+        object.__setattr__(self, "ans", list(ds[info["a_col_name"]]))
     def prompts(self, resps: list[str]) -> list[str]:
         return [self.inst.format(answer_des=self.answer_des, examples=self.examples, response=r) for r in resps]
