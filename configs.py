@@ -136,5 +136,36 @@ class JudgeConfig:
         info = INFO[self.name]
         if self.answer_des is None:
             object.__setattr__(self, "answer_des", info["answer_des"])
+        ds = load_dataset(info["ds_name"], split=self.split)
+        if self.max_idx:
+            ds = ds.select(range(self.max_idx))
+        object.__setattr__(self, "inst", "".join(INST[msg] for msg in self.msgs))
+        object.__setattr__(self, "examples", "\n    ".join(info["examples"]))
+        object.__setattr__(self, "ans", list(ds[info["a_col_name"]]))
     def prompts(self, resps: list[str]) -> list[str]:
         return [self.inst.format(answer_des=self.answer_des, examples=self.examples, response=r) for r in resps]
+
+    def score(self, preds: list[str]) -> float:
+        return INFO[self.name]["score"](preds, self.ans)
+
+
+def save(root, m, dcs, gcs, inputs, outputs, acc: list[float] | None = None, names: list[str] | None = None):
+    os.makedirs(root, exist_ok=True)
+    stamp = time.strftime("%Y-%m-%d_%H-%M-%S")
+    for k, (dc, gc, i, o) in enumerate(zip(dcs, gcs, inputs, outputs, strict=True)):
+        name = names[k] if names else f"{stamp}-config-{k}.json"
+        with open(os.path.join(root, name), "w") as f:
+            json.dump({"Model Config": asdict(m), "Data Config": asdict(dc),
+                       "Generation Config": asdict(gc)}, f, indent=INDENT)
+        with open(os.path.join(root, name.replace("-config-", "-io-")), "w") as f:
+            json.dump({"Inputs": i, "Outputs": o,
+                       "Accuracy": acc[k] if acc is not None else None}, f, indent=INDENT)
+
+
+def load(root):
+    configs = [f for f in os.listdir(root) if "-config-" in f]
+    loader = lambda f: json.load(open(os.path.join(root, f)))
+    res = {"file": configs,
+           "config": [loader(c) for c in configs],
+           "io": [loader(c.replace("-config-", "-io-")) for c in configs]}
+    return res
