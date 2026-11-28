@@ -23,4 +23,3 @@ class Generator:
             outputs.append(raw_outputs[start:start + len(mc)])
             start += len(mc)
         return inputs, outputs
-

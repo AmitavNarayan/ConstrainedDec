@@ -16,7 +16,9 @@ def gsm_score(preds: list[str], ans: list[str]) -> float:
 
 INFO = {
     "gsm": {
+        
         "ds_name": "apple/GSM-Symbolic",
+        "ds_type": "main",
         "q_col_name": "question",
         "a_col_name": "answer",
         "answer_des": "a single integer",
@@ -31,6 +33,9 @@ INFO = {
         ],
     }
 }
+INFO["gsm_p1"] = {**INFO["gsm"], "ds_type": "p1"}
+INFO["gsm_p2"] = {**INFO["gsm"], "ds_type": "p2"}
+
 
 
 INST = {
@@ -109,7 +114,7 @@ class ModelConfig:
     max_model_len: int = None
     gpu_mem_util: float = 0.9
     num_gpus: int = 1
-
+    lora: str = None
     @property
     def path(self) -> str:
         return ORIGINS[self.origin] + self.name
@@ -138,7 +143,7 @@ class PredConfig:
         info = INFO[self.name]
         if self.answer_des is None:
             object.__setattr__(self, "answer_des", info["answer_des"])
-        ds = load_dataset(info["ds_name"], split=self.split)
+        ds = load_dataset(info["ds_name"], info["ds_type"], split=self.split)
         if self.max_idx:
             ds = ds.select(range(self.max_idx))
         object.__setattr__(self, "inst", "".join(INST[msg] for msg in self.msgs))
@@ -160,7 +165,7 @@ class JudgeConfig:
         info = INFO[self.name]
         if self.answer_des is None:
             object.__setattr__(self, "answer_des", info["answer_des"])
-        ds = load_dataset(info["ds_name"], split=self.split)
+        ds = load_dataset(info["ds_name"], info["ds_type"], split=self.split)
         if self.max_idx:
             ds = ds.select(range(self.max_idx))
         object.__setattr__(self, "inst", "".join(INST[msg] for msg in self.msgs))

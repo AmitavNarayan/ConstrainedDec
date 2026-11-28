@@ -16,6 +16,7 @@ if __name__ == "__main__":
     parser.add_argument("--judge", action="store_true")
     parser.add_argument("--num-gpus", type=int, default=1)
     parser.add_argument("--max-model-len", type=int)
+    parser.add_argument("--name", default="gsm")
     args = parser.parse_args()
 
     root = DIRS[args.dir]
@@ -34,7 +35,7 @@ if __name__ == "__main__":
         save(os.path.join(root, "judged", time.strftime("%Y-%m-%d_%H-%M-%S")),
              m, dcs, gcs, inputs, outputs, acc, names=res["file"])
     else:
-        dcs = [PredConfig(p.split(","), max_idx=args.max_val) for p in args.prompts]
+        dcs = [PredConfig(p.split(","), name=args.name, max_idx=args.max_val) for p in args.prompts]
         gcs = [GenConfig() for _ in dcs]
         inputs, outputs = gen.generate([dc.prompts() for dc in dcs], gcs)
         save(root, m, dcs, gcs, inputs, outputs)
