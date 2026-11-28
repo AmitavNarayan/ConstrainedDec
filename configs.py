@@ -119,6 +119,9 @@ class PredConfig:
             ds = ds.select(range(self.max_idx))
         object.__setattr__(self, "inst", "".join(INST[msg] for msg in self.msgs))
         object.__setattr__(self, "qs", list(ds[info["q_col_name"]]))
+    def prompts(self) -> list[str]:
+        return [self.inst.format(answer_des=self.answer_des, question=q) for q in self.qs]
+
 
 
 @dataclass(frozen=True)
@@ -133,3 +136,5 @@ class JudgeConfig:
         info = INFO[self.name]
         if self.answer_des is None:
             object.__setattr__(self, "answer_des", info["answer_des"])
+    def prompts(self, resps: list[str]) -> list[str]:
+        return [self.inst.format(answer_des=self.answer_des, examples=self.examples, response=r) for r in resps]

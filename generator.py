@@ -23,14 +23,3 @@ class Generator:
             start += len(mc)
         return inputs, outputs
 
-    def judge(self, dcs, gcs, resps):
-        msg_contents = [[dc.inst.format(answer_des=dc.answer_des, examples=dc.examples, response=r) for r in res]
-                        for dc, res in zip(dcs, resps, strict=True)]
-        inputs, outputs = self.generate(msg_contents, gcs)
-        accs = [dc.score(o) for dc, o in zip(dcs, outputs, strict=True)]
-        return inputs, outputs, accs
-
-    def predict(self, dcs, gcs, ques):
-        msg_contents = [[dc.inst.format(answer_des=dc.answer_des, question=q) for q in qs]
-                        for dc, qs in zip(dcs, ques, strict=True)]
-        return self.generate(msg_contents, gcs)
